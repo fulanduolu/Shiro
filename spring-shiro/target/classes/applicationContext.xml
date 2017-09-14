@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>	
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+	
+    <!-- =========================================================
+         Shiro Core Components - Not Spring Specific  核心组件
+         ========================================================= -->
+    <!-- Shiro's main business-tier object for web-enabled applications
+         (use DefaultSecurityManager instead when there is no web environment)-->
+         
+    <!-- 1.配置securityManager !!!!
+     -->
+    <bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+        <property name="cacheManager" ref="cacheManager"/>
+        <property name="authenticator" ref="authenticator"></property>
+        <property name="realms">
+        	<list>
+    			<ref bean="jdbcRealm"></ref>
+    			<ref bean="secondRealm"></ref>
+    		</list>
+        </property>
+    </bean>
+
+    <!-- Let's use some enterprise caching support for better performance.  You can replace this with any enterprise
+         caching framework implementation that you like (Terracotta+Ehcache, Coherence, GigaSpaces, etc -->
+   
+   
+   
+   <!-- 
+   		配置CacheManager
+   		2.1.需要加入ehcache的jar包以及配置文件
+    -->
+   
+    <bean id="cacheManager" class="org.apache.shiro.cache.ehcache.EhCacheManager">
+        <!-- Set a net.sf.ehcache.CacheManager instance here if you already have one.  If not, a new one
+             will be creaed with a default config:
+             <property name="cacheManager" ref="ehCacheManager"/> -->
+        <!-- If you don't have a pre-built net.sf.ehcache.CacheManager instance to inject, but you want
+             a specific Ehcache configuration to be used, specify that here.  If you don't, a default
+             will be used.:-->
+             
+        <!-- 加入一个ehcache的配置文件  -->
+        <property name="cacheManagerConfigFile" value="classpath:ehcache.xml"/> 
+    </bean>
+
+    <!-- Used by the SecurityManager to access security data (users, roles, etc).
+         Many other realm implementations can be used too (PropertiesRealm,
+         LdapRealm, etc. -->
+         
+    <bean id="authenticator" class="org.apache.shiro.authc.pam.ModularRealmAuthenticator">
+    	
+    </bean>
+    
+         
+    <!--3.配置realm  
+    	   3.1。直接配置实现了Realm接口的bean   （自己手写类）
+    -->
+    <bean id="jdbcRealm" class="com.dongfang.realm.ShiroRealm">
+        <property name="credentialsMatcher">
+        	<bean class="org.apache.shiro.authc.credential.HashedCredentialsMatcher">
+        		<property name="hashAlgorithmName" value="MD5"></property>
+        		<property name="hashIterations" value="1024"></property>
+        	</bean>
+        </property>
+    </bean>
+    
+    <bean id="secondRealm" class="com.dongfang.realm.SecondRealm">
+        <property name="credentialsMatcher">
+        	<bean class="org.apache.shiro.authc.credential.HashedCredentialsMatcher">
+        		<property name="hashAlgorithmName" value="SHA1"></property>
+        		<property name="hashIterations" value="1024"></property>
+        	</bean>
+        </property>
+    </bean>
+
+    <!-- =========================================================
+         Shiro Spring-specific integration
+         ========================================================= -->
+    <!-- Post processor that automatically invokes init() and destroy() methods
+         for Spring-configured Shiro objects so you don't have to
+         1) specify an init-method and destroy-method attributes for every bean
+            definition and
+         2) even know which Shiro objects require these methods to be
+            called. -->
+            
+    <!-- 
+    	4.生命周期的 LifecycleBeanPostProcessor管理器。可以自动调用配置在spring IOC容器中shiro bean的生命周期方法。
+     -->
+    <bean id="lifecycleBeanPostProcessor" class="org.apache.shiro.spring.LifecycleBeanPostProcessor"/>
+
+    <!-- Enable Shiro Annotations for Spring-configured beans.  Only run after
+         the lifecycleBeanProcessor has run: -->
+         
+         
+     <!-- 
+     	5.启用IOC容器中使用shiro的注解。但是必须在配置了lifecycleBeanPostProcessor之后，才可以使用
+      -->
+    <bean class="org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator"
+          depends-on="lifecycleBeanPostProcessor"/>
+    <bean class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">
+        <property name="securityManager" ref="securityManager"/>
+    </bean>
+
+    <!-- Define the Shiro Filter here (as a FactoryBean) instead of directly in web.xml -
+         web.xml uses the DelegatingFilterProxy to access this bean.  This allows us
+         to wire things with more control as well utilize nice Spring things such as
+         PropertiesPlaceholderConfigurer and abstract beans or anything else we might need: -->
+         
+     <!-- 
+     	6.配置了shiroFilter
+     		6.1.  Id必须和web.xml文件中DelegatingFilterProxy配置的一致
+     	若不一致，则会抛出异常。   因为shiro会来ioc容器中查找和filter name名字对应的filter bean。
+     		6.2.  
+      -->
+    <bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+        <property name="securityManager" ref="securityManager"/>
+        <property name="loginUrl" value="/login.jsp"/>
+        <property name="successUrl" value="/list.jsp"/>
+        <property name="unauthorizedUrl" value="/unauthorized.jsp"/>
+  
+        <!-- 
+        	配置哪些页面需要受到保护，以及访问这些页面需要的权限。
+        	1.anon  可以被匿名访问
+        	2.authc	必须认证（即登录后）才可以访问的页面
+        	3.logout  登出的过滤器
+        	4.roles 角色过滤器
+         -->
+       <property name="filterChainDefinitions">
+            <value>
+                /login.jsp = anon
+                /ShiroLogin = anon
+                /shiro/logout = logout
+                /user.jsp = roles[user]
+                /admin.jsp = roles[admin]
+                
+                # everything else requires authentication:
+                
+                /** = authc
+            </value>
+        </property>
+    </bean>
+    <bean id="shiroService" class="com.dongfang.service.ShiroService"></bean>
+</beans>
